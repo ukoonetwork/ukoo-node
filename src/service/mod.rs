@@ -7,6 +7,7 @@ use std::process::Command;
 use crate::error::NodeError;
 use crate::paths;
 
+#[cfg(target_os = "macos")]
 const LABEL: &str = "network.ukoo.node";
 
 pub enum State {
