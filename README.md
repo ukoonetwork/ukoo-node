@@ -67,3 +67,7 @@ cargo build --release
 
 Upgrading llama.cpp changes the engine pin in `scripts/package.sh`, `scripts/fetch-engine.sh` and
 `src/engine/mod.rs` together, plus the relayer's token counter, so billing counts tokens with the same code.
+
+## License
+
+Apache-2.0. The bundled llama.cpp engine is MIT-licensed; its license ships with every release.
