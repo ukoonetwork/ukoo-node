@@ -1,0 +1,26 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        crate: [".", release-tool]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ matrix.crate }}
+      - run: cargo fmt --check
+        working-directory: ${{ matrix.crate }}
+      - run: cargo clippy --all-targets -- -D warnings
+        working-directory: ${{ matrix.crate }}
+      - run: cargo test
+        working-directory: ${{ matrix.crate }}

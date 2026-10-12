@@ -1,0 +1,61 @@
+name: Build ukoo-node release
+# On a tag like node-v0.2.0: build ukoo-node for every platform, package it with its engine, and
+# attach everything to a draft release. The release-key holder then signs and publishes it on their
+# own machine with scripts/sign-release.sh; CI never sees the release key.
+on:
+  push:
+    tags: ["node-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { os: macos-14, platforms: "macos-aarch64-metal", binary: ukoo-node }
+          - { os: ubuntu-22.04, platforms: "linux-x86_64-cpu linux-x86_64-cuda", binary: ukoo-node }
+          - { os: windows-2022, platforms: "windows-x86_64-cpu windows-x86_64-cuda", binary: ukoo-node.exe }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      UKOO_RELEASE_PUBLIC_KEY: ${{ vars.UKOO_RELEASE_PUBLIC_KEY }}
+      UKOO_RELEASES_URL: https://github.com/${{ github.repository }}/releases/latest/download
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - name: Check the tag matches the crate version
+        run: |
+          VERSION=${GITHUB_REF_NAME#node-v}
+          grep -q "^version = \"$VERSION\"" Cargo.toml || { echo "tag $GITHUB_REF_NAME doesn't match Cargo.toml"; exit 1; }
+          test -n "$UKOO_RELEASE_PUBLIC_KEY" || { echo "set the UKOO_RELEASE_PUBLIC_KEY repository variable first"; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - run: cargo build --release --locked
+      - name: Package
+        run: |
+          for p in ${{ matrix.platforms }}; do
+            scripts/package.sh "$p" "$VERSION" "target/release/${{ matrix.binary }}" "$PWD/dist"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ukoo-node-${{ matrix.os }}
+          path: dist/*
+
+  draft:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --draft \
+            --title "ukoo-node ${GITHUB_REF_NAME#node-v}" \
+            --notes "Unsigned draft. Publish with scripts/sign-release.sh."

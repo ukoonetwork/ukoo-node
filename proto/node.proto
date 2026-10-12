@@ -1,0 +1,82 @@
+// The protocol between ukoo-node and the Ukoo relayer. The relayer keeps an identical copy.
+syntax = "proto3";
+package ukoo.node.v1;
+
+service NodeLink {
+  rpc Connect(stream NodeMessage) returns (stream RelayerMessage);
+}
+
+message NodeMessage {
+  oneof msg {
+    Hello hello = 1;
+    ChallengeResponse challenge_response = 2;
+    Serve serve = 3;
+    Heartbeat heartbeat = 4;
+    JobEvent job_event = 5;
+  }
+}
+
+message RelayerMessage {
+  oneof msg {
+    Challenge challenge = 1;
+    Welcome welcome = 2;
+    Rejected rejected = 3;
+    Job job = 4;
+    CancelJob cancel_job = 5;
+  }
+}
+
+message Hello {
+  bytes public_key = 1;
+  string node_version = 2;
+  string platform = 3;
+  uint64 usable_memory_bytes = 4;
+}
+
+message Challenge { bytes nonce = 1; }
+
+// Ed25519 signature over "ukoo-node-auth-v1" || nonce || public_key.
+message ChallengeResponse { bytes signature = 1; }
+
+message Welcome {
+  string node_id = 1;
+  uint32 heartbeat_interval_secs = 2;
+}
+
+message Rejected { string code = 1; string message = 2; }
+
+message Serve {
+  string model_id = 1;
+  string model_version = 2;
+  repeated string file_sha256s = 3;
+  string ask_price_per_1m_input_usd = 4;
+  string ask_price_per_1m_output_usd = 5;
+  uint32 parallel_slots = 6;
+}
+
+message Heartbeat {
+  uint64 seq = 1;
+  uint32 active_jobs = 2;
+  bool available = 3;
+  repeated string file_sha256s = 4;
+}
+
+message Job {
+  string job_id = 1;
+  bytes request_json = 2;
+  uint32 deadline_ms = 3;
+}
+
+message CancelJob { string job_id = 1; }
+
+message JobEvent {
+  string job_id = 1;
+  oneof event {
+    bytes sse_data = 2;
+    Completed completed = 3;
+    Failed failed = 4;
+  }
+}
+
+message Completed { uint32 node_prompt_tokens = 1; uint32 node_completion_tokens = 2; }
+message Failed { string code = 1; string message = 2; }
